@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#1b1b1b"/>
+  <rect x="56" y="56" width="400" height="400" rx="20" fill="#f6f0e3" stroke="#4f2c2f" stroke-width="14"/>
+  <line x1="180" y1="78" x2="180" y2="434" stroke="#b7a88f" stroke-width="8"/>
+  <text x="250" y="318" font-size="210" fill="#4f2c2f" font-family="Georgia, serif" font-weight="700">F</text>
+</svg>

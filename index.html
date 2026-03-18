@@ -1,0 +1,1379 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#161719" />
+  <meta name="description" content="Offline-first textbook PDF formatter for long-form medical study notes." />
+  <title>Folio Text2PDF</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <style>
+    :root {
+      --app-bg: #17181a;
+      --panel-bg: #1f2124;
+      --panel-bg-2: #26292d;
+      --text: #ece7dd;
+      --muted: #bcb6a9;
+      --paper: #f6f0e3;
+      --paper-2: #f3ecd9;
+      --paper-3: #ebe0c7;
+      --ink: #1f1f1f;
+      --accent: #4f2c2f;
+      --accent-soft: rgba(79, 44, 47, 0.13);
+      --rule: rgba(28, 29, 30, 0.2);
+      --gutter-bg: rgba(0, 0, 0, 0.02);
+      --font-size-base: 12pt;
+      --line-height: 1.48;
+      --density-space: 1;
+      --radius: 10px;
+      --left-gutter: 2.1cm;
+      --right-gutter: 4.1cm;
+      --page-width: 210mm;
+      --page-height: 297mm;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top: env(safe-area-inset-top, 0px);
+      --qa-q: #22394a;
+      --qa-a: #2f3d2f;
+      --night-paper: #221e1a;
+      --night-ink: #e8dccc;
+      --night-rule: rgba(255, 255, 255, 0.12);
+      --night-gutter-bg: rgba(255, 255, 255, 0.03);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: radial-gradient(circle at 30% 10%, #24272b 0%, #161719 52%);
+      color: var(--text);
+      font-family: Inter, Roboto, "Segoe UI", system-ui, -apple-system, sans-serif;
+      text-size-adjust: 100%;
+      -webkit-text-size-adjust: 100%;
+      touch-action: manipulation;
+    }
+
+    body.reading-mode .app-shell > :not(.preview-shell),
+    body.reading-mode .top-bar,
+    body.reading-mode .fab-row .secondary,
+    body.reading-mode .io-tabs,
+    body.reading-mode .offline-pill {
+      display: none !important;
+    }
+
+    body.reading-mode .preview-shell {
+      padding: 12px;
+      max-width: 100vw;
+      margin: 0;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      min-height: 100dvh;
+      gap: 10px;
+      padding: max(10px, var(--safe-top)) 12px calc(14px + var(--safe-bottom));
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: linear-gradient(180deg, #27292c, #1f2124);
+      border: 1px solid #35383d;
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .brand strong {
+      font-weight: 680;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-size: 0.86rem;
+    }
+
+    .brand span {
+      font-size: 0.76rem;
+      color: #a9a295;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .offline-pill {
+      font-size: 0.72rem;
+      color: #d2c9b8;
+      border: 1px solid #5a5f67;
+      border-radius: 999px;
+      padding: 5px 9px;
+      background: #222428;
+      flex-shrink: 0;
+    }
+
+    .io-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .tab {
+      border: 1px solid #3f4348;
+      background: #23262a;
+      color: #d8d2c6;
+      min-height: 46px;
+      border-radius: var(--radius);
+      font-weight: 620;
+      font-size: 0.9rem;
+    }
+
+    .tab.active {
+      background: #30343a;
+      border-color: #5a616b;
+      color: #f0e8da;
+    }
+
+    .control-panel {
+      background: linear-gradient(180deg, var(--panel-bg), var(--panel-bg-2));
+      border-radius: var(--radius);
+      border: 1px solid #33373d;
+      padding: 12px;
+      display: grid;
+      gap: 11px;
+    }
+
+    label { font-size: 0.76rem; color: #b8b2a5; letter-spacing: 0.03em; text-transform: uppercase; }
+
+    input[type="text"], textarea, select {
+      width: 100%;
+      border: 1px solid #494e55;
+      border-radius: 9px;
+      background: #1a1c1f;
+      color: #f5eee2;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+    }
+
+    textarea {
+      min-height: 38dvh;
+      resize: vertical;
+      line-height: 1.44;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    .metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 0.76rem;
+      color: #c7bfaf;
+    }
+
+    .metric {
+      border: 1px solid #40444b;
+      background: #202327;
+      border-radius: 999px;
+      padding: 4px 9px;
+    }
+
+    .grid-two {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .prefs-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .toggle-row {
+      display: grid;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .toggle {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      align-items: start;
+      font-size: 0.82rem;
+      color: #d9d2c5;
+      text-transform: none;
+      letter-spacing: normal;
+      padding: 7px;
+      border-radius: 7px;
+      border: 1px solid #40454c;
+      background: #1f2226;
+    }
+
+    .toggle.modifier { border-color: #7e6250; background: #2b2622; }
+
+    .toggle small {
+      display: block;
+      color: #b5ab9a;
+      line-height: 1.28;
+      margin-top: 2px;
+    }
+
+    .history {
+      border-top: 1px solid #3a3e45;
+      padding-top: 8px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .history-list {
+      display: grid;
+      gap: 4px;
+      max-height: 180px;
+      overflow: auto;
+    }
+
+    .history-item {
+      width: 100%;
+      text-align: left;
+      background: #1c1f23;
+      color: #d5cdbf;
+      border: 1px solid #3b3f46;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 0.82rem;
+    }
+
+    .panel-stack { display: none; gap: 10px; }
+    .panel-stack.active { display: grid; }
+
+    .preview-shell {
+      display: grid;
+      justify-items: center;
+      gap: 14px;
+      max-width: 100%;
+      overflow-x: auto;
+      overscroll-behavior: contain;
+      touch-action: pan-x pan-y pinch-zoom;
+      padding-bottom: 90px;
+    }
+
+    .page {
+      width: min(var(--page-width), calc(100vw - 20px));
+      min-height: var(--page-height);
+      background: var(--paper);
+      color: var(--ink);
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.32);
+      border-radius: 2px;
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr;
+      overflow: hidden;
+    }
+
+    .page::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        radial-gradient(circle at 20% 30%, rgba(0,0,0,0.018), transparent 38%),
+        radial-gradient(circle at 70% 72%, rgba(0,0,0,0.012), transparent 42%);
+      mix-blend-mode: multiply;
+      opacity: .7;
+    }
+
+    .page-inner {
+      position: relative;
+      z-index: 1;
+      padding: 2.2cm var(--right-gutter) 2.1cm var(--left-gutter);
+      font-family: "Crimson Pro", "EB Garamond", Georgia, "Palatino Linotype", Cambria, Baskerville, serif;
+      font-size: var(--font-size-base);
+      line-height: var(--line-height);
+      font-variant-ligatures: common-ligatures contextual;
+      font-feature-settings: "liga" 1, "clig" 1, "kern" 1, "onum" 1;
+      text-rendering: optimizeLegibility;
+      hyphens: auto;
+      hanging-punctuation: first allow-end;
+      color: var(--ink);
+      position: relative;
+      column-gap: 0;
+      min-height: calc(var(--page-height) - 4.3cm);
+    }
+
+    .page-inner::after {
+      content: "";
+      position: absolute;
+      top: 2.2cm;
+      bottom: 2.1cm;
+      right: calc(var(--right-gutter) - 3.4cm);
+      width: 3.3cm;
+      background:
+        radial-gradient(circle, rgba(0,0,0,0.055) 0.46px, transparent 0.48px) 0 0/5mm 5mm,
+        linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.018) 97%, transparent 100%);
+      border-left: 1px solid var(--rule);
+      background-color: var(--gutter-bg);
+      pointer-events: none;
+    }
+
+    .running-header, .running-footer {
+      position: absolute;
+      left: var(--left-gutter);
+      right: var(--right-gutter);
+      color: rgba(40, 37, 32, 0.72);
+      font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+      z-index: 2;
+      pointer-events: none;
+      letter-spacing: 0.06em;
+    }
+
+    .running-header {
+      top: 0.9cm;
+      font-size: 8.5pt;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      border-bottom: 1px solid rgba(0,0,0,0.13);
+      padding-bottom: 3px;
+    }
+
+    .running-footer {
+      bottom: 0.8cm;
+      font-size: 8.6pt;
+      text-align: center;
+    }
+
+    .chapter-title {
+      font-size: calc(var(--font-size-base) * 2.05);
+      line-height: 1.16;
+      margin: 0 0 0.2cm 0;
+      color: color-mix(in srgb, var(--accent) 84%, black 16%);
+      letter-spacing: 0.01em;
+      font-weight: 660;
+    }
+
+    .chapter-meta {
+      margin: 0 0 0.32cm;
+      font-style: italic;
+      color: rgba(40, 39, 36, 0.8);
+      font-size: calc(var(--font-size-base) * 0.9);
+    }
+
+    .title-rule {
+      border: 0;
+      border-top: 1px solid color-mix(in srgb, var(--accent) 56%, black 44%);
+      margin: 0.3cm 0 0.45cm;
+    }
+
+    .toc {
+      margin: 0.25cm 0 0.45cm;
+      padding: 0;
+      list-style: none;
+      font-size: calc(var(--font-size-base) * 0.92);
+    }
+
+    .toc li {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 8px;
+      align-items: baseline;
+      margin: 3px 0;
+    }
+
+    .toc .dots {
+      border-bottom: 1px dotted rgba(0,0,0,0.35);
+      transform: translateY(-2px);
+    }
+
+    h1,h2,h3,h4,h5,h6 {
+      margin: calc(0.36em * var(--density-space)) 0 calc(0.22em * var(--density-space));
+      color: var(--accent);
+      font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+      line-height: 1.2;
+      letter-spacing: 0.02em;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    h1 { font-size: calc(var(--font-size-base) * 1.55); font-weight: 690; margin-top: 0.4cm; }
+    h2 { font-size: calc(var(--font-size-base) * 1.27); font-weight: 640; margin-top: 0.3cm; }
+    h3 { font-size: calc(var(--font-size-base) * 1.13); font-weight: 630; }
+    h4,h5,h6 { font-size: calc(var(--font-size-base) * 1.04); font-weight: 620; }
+
+    p { margin: 0 0 calc(0.38em * var(--density-space)); text-align: justify; orphans: 3; widows: 3; }
+    .book-paragraph + .book-paragraph { text-indent: 1.4em; }
+
+    .dropcap::first-letter {
+      float: left;
+      font-size: 3.2em;
+      line-height: 0.85;
+      margin-right: 0.08em;
+      margin-top: 0.06em;
+      color: color-mix(in srgb, var(--accent) 86%, black 14%);
+    }
+
+    ul, ol { margin: 0 0 calc(0.45em * var(--density-space)) 1.5em; padding: 0; }
+    li { margin: 0.12em 0; }
+    ul li::marker { color: color-mix(in srgb, var(--accent) 70%, black 30%); }
+    ul ul li::marker { content: "◦ "; }
+    ul ul ul li::marker { content: "▪ "; }
+
+    strong { color: #2d2d2d; }
+    em { color: #34302c; }
+
+    .abbr { font-variant-caps: all-small-caps; letter-spacing: 0.02em; }
+
+    .section-rule {
+      border: 0;
+      border-top: 1px solid rgba(0,0,0,0.22);
+      margin: 0.4cm 0 0.3cm;
+      text-align: center;
+      position: relative;
+    }
+
+    .section-rule::after {
+      content: "◆";
+      position: absolute;
+      left: 50%;
+      top: -0.65em;
+      transform: translateX(-50%);
+      font-size: 0.62rem;
+      background: var(--paper);
+      padding: 0 8px;
+      color: rgba(0,0,0,0.44);
+    }
+
+    blockquote {
+      margin: 0.36cm 0 0.34cm;
+      border-left: 4px solid color-mix(in srgb, var(--accent) 58%, #3f4f4f 42%);
+      padding: 0.1cm 0.28cm;
+      background: color-mix(in srgb, var(--accent-soft) 75%, transparent 25%);
+      font-style: italic;
+      page-break-inside: avoid;
+    }
+
+    .callout {
+      border-left: 4px solid;
+      padding: 0.18cm 0.25cm;
+      margin: 0.3cm 0;
+      background: rgba(0, 0, 0, 0.035);
+      border-radius: 2px;
+      page-break-inside: avoid;
+    }
+
+    .callout.pearl { border-color: #8a6d2f; background: rgba(155, 121, 33, 0.09); }
+    .callout.warning { border-color: #8e3f3f; background: rgba(170, 65, 65, 0.09); }
+    .callout.note { border-color: #3d5b79; background: rgba(61, 91, 121, 0.1); }
+
+    .qa-q {
+      color: var(--qa-q);
+      font-weight: 700;
+      margin-top: 0.2cm;
+      break-after: avoid;
+    }
+
+    .qa-a {
+      margin-left: 0.3cm;
+      border-left: 2px solid rgba(0,0,0,0.18);
+      padding-left: 0.22cm;
+      color: var(--qa-a);
+    }
+
+    pre {
+      white-space: pre-wrap;
+      padding: 0.2cm;
+      margin: 0.3cm 0;
+      border-radius: 5px;
+      background: #edf2f8;
+      border: 1px solid #c5d0df;
+      color: #1a2430;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: calc(var(--font-size-base) * 0.86);
+      line-height: 1.42;
+      font-feature-settings: "liga" 0, "clig" 0;
+      page-break-inside: avoid;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+      font-feature-settings: "liga" 0, "clig" 0;
+      background: rgba(34, 56, 80, 0.09);
+      border-radius: 3px;
+      padding: 0.02em 0.2em;
+    }
+
+    pre code { background: transparent; padding: 0; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.3cm 0;
+      font-size: calc(var(--font-size-base) * 0.88);
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    thead th {
+      text-align: left;
+      border-top: 1.5px solid #343434;
+      border-bottom: 1px solid #575757;
+      padding: 0.1cm 0.08cm;
+      background: rgba(0,0,0,0.05);
+      font-family: Inter, system-ui, sans-serif;
+      font-size: 0.84em;
+      letter-spacing: 0.02em;
+    }
+
+    tbody td {
+      border-bottom: 0.8px solid rgba(0,0,0,0.2);
+      padding: 0.08cm;
+      vertical-align: top;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+
+    tbody tr:nth-child(2n) td { background: rgba(0,0,0,0.025); }
+
+    a { color: #1f4f64; text-decoration-thickness: 1px; overflow-wrap: anywhere; }
+
+    .colophon {
+      margin-top: 0.45cm;
+      font-family: Inter, system-ui, sans-serif;
+      font-size: 8.3pt;
+      color: rgba(0,0,0,0.58);
+      text-align: center;
+    }
+
+    .fab-row {
+      position: fixed;
+      right: 14px;
+      bottom: calc(14px + var(--safe-bottom));
+      z-index: 45;
+      display: grid;
+      gap: 8px;
+      width: min(240px, calc(100vw - 24px));
+    }
+
+    .fab {
+      min-height: 50px;
+      border-radius: 999px;
+      border: 1px solid #595f68;
+      background: #f6efe1;
+      color: #2a2520;
+      font-weight: 680;
+      font-size: 0.95rem;
+      box-shadow: 0 10px 18px rgba(0,0,0,0.3);
+    }
+
+    .fab.secondary {
+      background: #25282d;
+      color: #e8dece;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(82px + var(--safe-bottom));
+      transform: translateX(-50%);
+      background: #22262b;
+      color: #f3ecdf;
+      border: 1px solid #4b525c;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 0.82rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s;
+      z-index: 80;
+    }
+
+    .toast.show { opacity: 1; }
+
+    .hidden { display: none !important; }
+
+    body.night-preview .page {
+      background: var(--night-paper);
+      color: var(--night-ink);
+    }
+    body.night-preview .page::before { opacity: .35; }
+    body.night-preview .page-inner { color: var(--night-ink); }
+    body.night-preview .page-inner::after { border-color: var(--night-rule); background-color: var(--night-gutter-bg); }
+    body.night-preview .running-header, body.night-preview .running-footer { color: rgba(240, 225, 202, 0.75); }
+    body.night-preview h1, body.night-preview h2, body.night-preview h3, body.night-preview h4 { color: #cfad8d; }
+    body.night-preview .section-rule::after { background: var(--night-paper); color: rgba(255,255,255,.5); }
+    body.night-preview blockquote { background: rgba(255,255,255,0.06); }
+    body.night-preview pre { background: #201f26; color: #ddd5c8; border-color: #5a5766; }
+    body.night-preview a { color: #83b8cb; }
+
+    @media (min-width: 1080px) {
+      .app-shell {
+        grid-template-columns: minmax(350px, 420px) 1fr;
+        grid-template-rows: auto auto 1fr;
+        align-items: start;
+      }
+
+      .top-bar { grid-column: 1 / -1; }
+      .io-tabs { grid-column: 1 / -1; max-width: 420px; }
+      .panel-stack.active { grid-column: 1; }
+      .preview-shell { grid-column: 2; grid-row: 2 / 4; min-height: 80dvh; }
+    }
+
+    @media print {
+      @page { size: A4 portrait; margin: 0; }
+      html, body { background: #fff !important; margin: 0 !important; }
+      .top-bar, .io-tabs, .control-panel, .fab-row, .toast { display: none !important; }
+      .preview-shell { padding: 0 !important; margin: 0 !important; overflow: visible !important; }
+      .page {
+        width: 210mm;
+        min-height: 297mm;
+        max-height: 297mm;
+        margin: 0;
+        border-radius: 0;
+        box-shadow: none;
+        break-after: page;
+        page-break-after: always;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .page::before { display: none !important; }
+
+      .page-inner {
+        min-height: auto;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="top-bar">
+      <div class="brand">
+        <strong>Folio</strong>
+        <span>Textbook Press for AI Medical Notes</span>
+      </div>
+      <div class="offline-pill" id="offlinePill">Checking connectivity…</div>
+    </header>
+
+    <nav class="io-tabs">
+      <button class="tab active" data-tab="input">Input</button>
+      <button class="tab" data-tab="preview">Preview</button>
+    </nav>
+
+    <section class="panel-stack active" id="inputPanel">
+      <div class="control-panel">
+        <div>
+          <label for="title">Document Title</label>
+          <input id="title" type="text" autocomplete="off" />
+        </div>
+
+        <div>
+          <label for="source">Paste AI Content</label>
+          <textarea id="source" spellcheck="false" placeholder="Paste your full AI response here…"></textarea>
+        </div>
+
+        <div class="metrics" id="metrics"></div>
+
+        <div class="prefs-grid">
+          <div>
+            <label for="warmth">Paper Warmth</label>
+            <select id="warmth">
+              <option value="cool">Cool Modern Textbook</option>
+              <option value="classic">Classic Harrison's Ivory</option>
+              <option value="old">Old Resident's Copy</option>
+            </select>
+          </div>
+          <div>
+            <label for="fontSize">Body Font Size</label>
+            <select id="fontSize">
+              <option value="10">Small (10pt)</option>
+              <option value="11">Medium (11pt)</option>
+              <option value="12" selected>Default (12pt)</option>
+              <option value="14">Large (14pt)</option>
+              <option value="16">Extra Large (16pt)</option>
+            </select>
+          </div>
+          <div>
+            <label for="density">Density</label>
+            <select id="density">
+              <option value="0.86">Compact</option>
+              <option value="1" selected>Normal</option>
+              <option value="1.16">Spacious</option>
+            </select>
+          </div>
+          <div>
+            <label for="preset">Style Preset</label>
+            <select id="preset">
+              <option value="harrisons">Harrison's Classic</option>
+              <option value="oxford">Oxford Compact</option>
+              <option value="exam">Exam Prep</option>
+              <option value="night">Night Review</option>
+            </select>
+          </div>
+          <div>
+            <label for="accent">Accent</label>
+            <select id="accent">
+              <option value="#4f2c2f">Oxblood</option>
+              <option value="#1f4e52">Deep Teal</option>
+              <option value="#2f4f3c">Forest Ink</option>
+              <option value="#233a56">Dark Navy</option>
+              <option value="#2f3542">Deep Slate</option>
+            </select>
+          </div>
+          <div>
+            <label for="marginMode">Annotation Margin</label>
+            <select id="marginMode">
+              <option value="right">Right (default)</option>
+              <option value="left">Left-handed</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle"><input id="nightMode" type="checkbox" /> <span>Night preview mode <small>Screen-only comfort mode. PDF stays in ivory mode.</small></span></label>
+          <label class="toggle"><input id="readingMode" type="checkbox" /> <span>Reading mode <small>Hide UI chrome and show only pages.</small></span></label>
+          <label class="toggle"><input id="hideAnswers" type="checkbox" /> <span>Examination mode <small>Hide answer sections in Q/A preview for active recall.</small></span></label>
+          <label class="toggle"><input id="palmLock" type="checkbox" /> <span>Palm lock <small>Prevents accidental text selection while scrolling.</small></span></label>
+          <label class="toggle modifier"><input id="cleanupBreaks" type="checkbox" /> <span>Clean up AI line breaks (modifies content) <small>Joins broken soft-wrap lines into normal paragraphs.</small></span></label>
+          <label class="toggle modifier"><input id="cleanupFluff" type="checkbox" /> <span>Clean up AI fluff preambles (modifies content) <small>Removes common AI filler intros/outros only.</small></span></label>
+        </div>
+
+        <div class="grid-two">
+          <button class="tab" id="formatBtn">Format Preview</button>
+          <button class="tab" id="clearBtn">Clear</button>
+        </div>
+
+        <details class="history">
+          <summary>Recent documents</summary>
+          <div class="history-list" id="historyList"></div>
+        </details>
+      </div>
+    </section>
+
+    <section class="preview-shell" id="preview"></section>
+  </main>
+
+  <div class="fab-row">
+    <button class="fab secondary" id="previewToggle">Go to Preview</button>
+    <button class="fab" id="printBtn">Save as PDF</button>
+  </div>
+
+  <div class="toast" id="toast">PDF ready for Samsung Notes.</div>
+
+  <script>
+    const STORAGE = {
+      draft: 't2p.draft.v1',
+      prefs: 't2p.prefs.v1',
+      history: 't2p.history.v1'
+    };
+
+    const titleEl = document.getElementById('title');
+    const sourceEl = document.getElementById('source');
+    const metricsEl = document.getElementById('metrics');
+    const previewEl = document.getElementById('preview');
+    const toastEl = document.getElementById('toast');
+    const tabs = [...document.querySelectorAll('.tab[data-tab]')];
+    const inputPanel = document.getElementById('inputPanel');
+    const previewToggle = document.getElementById('previewToggle');
+    const formatBtn = document.getElementById('formatBtn');
+    const printBtn = document.getElementById('printBtn');
+    const historyList = document.getElementById('historyList');
+
+    const prefsElements = {
+      warmth: document.getElementById('warmth'),
+      fontSize: document.getElementById('fontSize'),
+      density: document.getElementById('density'),
+      preset: document.getElementById('preset'),
+      accent: document.getElementById('accent'),
+      marginMode: document.getElementById('marginMode'),
+      nightMode: document.getElementById('nightMode'),
+      readingMode: document.getElementById('readingMode'),
+      hideAnswers: document.getElementById('hideAnswers'),
+      palmLock: document.getElementById('palmLock'),
+      cleanupBreaks: document.getElementById('cleanupBreaks'),
+      cleanupFluff: document.getElementById('cleanupFluff')
+    };
+
+    const titlePlaceholders = [
+      'Cardiology — Valvular Heart Disease',
+      'Surgery Case Batch 7',
+      'Pharmacology — Antihypertensives',
+      'Medicine Case Batch 3'
+    ];
+
+    function rotatePlaceholder() {
+      const i = Math.floor(Date.now() / 4000) % titlePlaceholders.length;
+      titleEl.placeholder = titlePlaceholders[i];
+    }
+    setInterval(rotatePlaceholder, 4000);
+    rotatePlaceholder();
+
+    function showToast(msg) {
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      setTimeout(() => toastEl.classList.remove('show'), 1800);
+    }
+
+    function formatDate(d = new Date()) {
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' ');
+    }
+
+    function slugify(name) {
+      return name.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80) || 'Medical_Notes';
+    }
+
+    function suggestedFileName() {
+      const title = getEffectiveTitle();
+      const d = new Date();
+      const date = `${String(d.getDate()).padStart(2, '0')}${d.toLocaleDateString('en-GB', { month: 'short' }).replace('.', '')}${d.getFullYear()}`;
+      return `${slugify(title)}_${date}.pdf`;
+    }
+
+    function setConnectivity() {
+      const pill = document.getElementById('offlinePill');
+      pill.textContent = navigator.onLine ? '✓ Offline-ready cache active' : '✓ Offline mode';
+    }
+    window.addEventListener('online', setConnectivity);
+    window.addEventListener('offline', setConnectivity);
+
+    function loadJSON(key, fallback) {
+      try {
+        return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
+    function saveJSON(key, value) {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+
+    function getPrefs() {
+      return loadJSON(STORAGE.prefs, {
+        warmth: 'classic', fontSize: '12', density: '1', preset: 'harrisons',
+        accent: '#4f2c2f', marginMode: 'right', nightMode: false, readingMode: false,
+        hideAnswers: false, palmLock: false, cleanupBreaks: false, cleanupFluff: false
+      });
+    }
+
+    function applyPrefsToUI(prefs) {
+      for (const [k, el] of Object.entries(prefsElements)) {
+        if (!(k in prefs)) continue;
+        if (el.type === 'checkbox') el.checked = !!prefs[k];
+        else el.value = prefs[k];
+      }
+    }
+
+    function updateCssPrefs() {
+      const prefs = collectPrefs();
+      if (prefs.warmth === 'cool') {
+        document.documentElement.style.setProperty('--paper', '#faf9f4');
+      } else if (prefs.warmth === 'old') {
+        document.documentElement.style.setProperty('--paper', '#efe2c6');
+      } else {
+        document.documentElement.style.setProperty('--paper', '#f6f0e3');
+      }
+
+      document.documentElement.style.setProperty('--accent', prefs.accent);
+      document.documentElement.style.setProperty('--font-size-base', `${prefs.fontSize}pt`);
+      document.documentElement.style.setProperty('--density-space', prefs.density);
+
+      if (prefs.marginMode === 'left') {
+        document.documentElement.style.setProperty('--left-gutter', '4.1cm');
+        document.documentElement.style.setProperty('--right-gutter', '2.1cm');
+      } else {
+        document.documentElement.style.setProperty('--left-gutter', '2.1cm');
+        document.documentElement.style.setProperty('--right-gutter', '4.1cm');
+      }
+
+      document.body.classList.toggle('night-preview', prefs.nightMode);
+      document.body.classList.toggle('reading-mode', prefs.readingMode);
+
+      if (prefs.preset === 'oxford') {
+        document.documentElement.style.setProperty('--font-size-base', `${Math.max(10, Number(prefs.fontSize) - 1)}pt`);
+        document.documentElement.style.setProperty('--line-height', '1.4');
+      } else if (prefs.preset === 'exam') {
+        document.documentElement.style.setProperty('--line-height', '1.52');
+      } else if (prefs.preset === 'night') {
+        prefsElements.nightMode.checked = true;
+        document.body.classList.add('night-preview');
+      } else {
+        document.documentElement.style.setProperty('--line-height', '1.48');
+      }
+
+      document.body.style.userSelect = prefs.palmLock ? 'none' : '';
+      saveJSON(STORAGE.prefs, prefs);
+    }
+
+    function collectPrefs() {
+      const out = {};
+      for (const [k, el] of Object.entries(prefsElements)) {
+        out[k] = el.type === 'checkbox' ? el.checked : el.value;
+      }
+      return out;
+    }
+
+    function getDraft() {
+      return loadJSON(STORAGE.draft, { title: '', source: '', lastRenderedAt: null });
+    }
+
+    function saveDraft() {
+      saveJSON(STORAGE.draft, { title: titleEl.value, source: sourceEl.value, lastRenderedAt: Date.now() });
+      updateMetrics();
+    }
+
+    function extractFirstHeadingOrSentence(text) {
+      const h1 = text.match(/^#\s+(.+)$/m);
+      if (h1) return h1[1].trim();
+      const firstMeaningful = text.split(/\n+/).map(s => s.trim()).find(s => s.length > 8) || 'Untitled Medical Notes';
+      return firstMeaningful.replace(/^[-*\d.\s]+/, '').slice(0, 80);
+    }
+
+    function autoIncrementTitle(lastTitle) {
+      const m = lastTitle.match(/^(.*?)(\d+)\s*$/);
+      if (!m) return '';
+      return `${m[1]}${String(Number(m[2]) + 1)}`;
+    }
+
+    function getEffectiveTitle() {
+      return titleEl.value.trim() || extractFirstHeadingOrSentence(sourceEl.value);
+    }
+
+    function sanitizeInput(text) {
+      return text
+        .replace(/\u00A0/g, ' ')
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .replace(/\r\n?/g, '\n');
+    }
+
+    function cleanupAIFluff(text) {
+      const patterns = [
+        /^\s*(Certainly!?|Sure!?|Absolutely!?|Of course!?)([^\n]{0,100})\n+/i,
+        /^\s*As an AI language model[^\n]*\n+/i,
+        /\n+\s*I hope this helps!?\s*$/i
+      ];
+      let out = text;
+      for (const p of patterns) out = out.replace(p, '\n');
+      return out;
+    }
+
+    function cleanupLineBreaks(text) {
+      const lines = text.split('\n');
+      const out = [];
+      let buf = '';
+      const flush = () => { if (buf) { out.push(buf); buf = ''; } };
+
+      for (const raw of lines) {
+        const line = raw.trimEnd();
+        if (!line.trim()) { flush(); out.push(''); continue; }
+        const isStruct = /^(```|#|>|\s*[-*+]\s|\s*\d+[.)]\s|\|.*\||---+|===+)/.test(line.trimStart());
+        if (isStruct) { flush(); out.push(line); continue; }
+        if (!buf) { buf = line.trim(); continue; }
+        const join = /[\w,;:]$/.test(buf) && /^[a-z(]/.test(line.trim());
+        if (join) buf += ' ' + line.trim();
+        else { flush(); buf = line.trim(); }
+      }
+      flush();
+      return out.join('\n');
+    }
+
+    function tokenizeMarkdown(text) {
+      const lines = text.split('\n');
+      const blocks = [];
+      let i = 0;
+      let inCode = false;
+      let codeLang = '';
+      let codeBuf = [];
+
+      while (i < lines.length) {
+        const line = lines[i];
+        if (/^```/.test(line.trim())) {
+          if (!inCode) {
+            inCode = true;
+            codeLang = line.trim().slice(3).trim();
+            codeBuf = [];
+          } else {
+            blocks.push({ type: 'code', lang: codeLang, text: codeBuf.join('\n') });
+            inCode = false;
+            codeLang = '';
+            codeBuf = [];
+          }
+          i += 1;
+          continue;
+        }
+
+        if (inCode) { codeBuf.push(line); i += 1; continue; }
+
+        if (/^\s*\|.+\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|?\s*[-:]+[-| :]*\|\s*$/.test(lines[i + 1])) {
+          const table = [line, lines[i + 1]];
+          i += 2;
+          while (i < lines.length && /^\s*\|.+\|\s*$/.test(lines[i])) { table.push(lines[i]); i += 1; }
+          blocks.push({ type: 'table', lines: table });
+          continue;
+        }
+
+        if (/^\s*([*\-\u2022\u25e6\u25aa]|\d+[.)])\s+/.test(line)) {
+          const items = [];
+          while (i < lines.length && /^\s*([*\-\u2022\u25e6\u25aa]|\d+[.)])\s+/.test(lines[i])) { items.push(lines[i]); i += 1; }
+          blocks.push({ type: 'list', items });
+          continue;
+        }
+
+        if (/^\s*>\s?/.test(line)) {
+          const qs = [];
+          while (i < lines.length && /^\s*>\s?/.test(lines[i])) { qs.push(lines[i].replace(/^\s*>\s?/, '')); i += 1; }
+          blocks.push({ type: 'quote', text: qs.join('\n') });
+          continue;
+        }
+
+        const h = line.match(/^(#{1,6})\s+(.+)$/);
+        if (h) {
+          blocks.push({ type: 'heading', level: h[1].length, text: h[2].trim() });
+          i += 1;
+          continue;
+        }
+
+        if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { blocks.push({ type: 'rule' }); i += 1; continue; }
+
+        if (!line.trim()) { blocks.push({ type: 'blank' }); i += 1; continue; }
+
+        const para = [line];
+        i += 1;
+        while (i < lines.length && lines[i].trim() && !/^(#{1,6})\s+/.test(lines[i]) && !/^\s*([*\-\u2022\u25e6\u25aa]|\d+[.)])\s+/.test(lines[i]) && !/^\s*>\s?/.test(lines[i]) && !/^```/.test(lines[i].trim()) && !/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(lines[i]) && !/^\s*\|.+\|\s*$/.test(lines[i])) {
+          para.push(lines[i]);
+          i += 1;
+        }
+        blocks.push({ type: 'paragraph', text: para.join('\n') });
+      }
+
+      if (inCode) blocks.push({ type: 'code', lang: codeLang, text: codeBuf.join('\n') });
+      return blocks;
+    }
+
+    function esc(str) {
+      return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+
+    function inlineFormat(s) {
+      let x = esc(s);
+      x = x.replace(/`([^`]+)`/g, '<code>$1</code>');
+      x = x.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      x = x.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      x = x.replace(/~~([^~]+)~~/g, '<s>$1</s>');
+      x = x.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>');
+      x = x.replace(/\b(ECG|MRI|COPD|CBC|CSF|ABG|HbA1c|CT|ICU|ARDS|AKI|CKD|DM|HTN|BP|HR|RR)\b/g, '<span class="abbr">$1</span>');
+      x = x.replace(/\b(Most Common|Pathognomonic|Gold Standard|Drug of Choice|Investigation of Choice)\b/g, '<mark style="background: rgba(121,88,49,0.12); padding:0 .08em;">$1</mark>');
+      return x;
+    }
+
+    function renderList(items) {
+      const ordered = /^\s*\d+[.)]\s+/.test(items[0]);
+      const tag = ordered ? 'ol' : 'ul';
+      const html = items.map(item => `<li>${inlineFormat(item.replace(/^\s*([*\-\u2022\u25e6\u25aa]|\d+[.)])\s+/, ''))}</li>`).join('');
+      return `<${tag}>${html}</${tag}>`;
+    }
+
+    function renderTable(lines) {
+      const row = r => r.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+      const rows = lines.map(row);
+      const head = rows[0];
+      const body = rows.slice(2);
+      const thead = `<thead><tr>${head.map(h => `<th>${inlineFormat(h)}</th>`).join('')}</tr></thead>`;
+      const tbody = `<tbody>${body.map(r => `<tr>${r.map(c => `<td>${inlineFormat(c)}</td>`).join('')}</tr>`).join('')}</tbody>`;
+      return `<table>${thead}${tbody}</table>`;
+    }
+
+    function detectCalloutType(text) {
+      if (/\b(Red Flag|Warning|Emergency)\s*:/i.test(text)) return 'warning';
+      if (/\b(Pearl|Mnemonic|Important|Remember|Key Point)\s*:/i.test(text)) return 'pearl';
+      if (/\b(Note)\s*:/i.test(text)) return 'note';
+      return '';
+    }
+
+    function renderBlocks(blocks) {
+      const tocEntries = [];
+      let html = '';
+      let firstAfterH1 = false;
+      let sectionCount = 0;
+
+      blocks.forEach((b, idx) => {
+        if (b.type === 'heading') {
+          const id = `sec-${idx}-${b.text.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+          if (b.level <= 2) tocEntries.push({ text: b.text, id, level: b.level });
+          if (b.level === 1) {
+            sectionCount += 1;
+            html += `<hr class="section-rule" />`;
+            firstAfterH1 = true;
+          }
+          html += `<h${b.level} id="${id}">${inlineFormat(b.text)}</h${b.level}>`;
+          return;
+        }
+
+        if (b.type === 'paragraph') {
+          const pText = b.text.trim();
+          if (/^\s*Q\s*[:.)-]/i.test(pText)) {
+            html += `<p class="qa-q book-paragraph">${inlineFormat(pText)}</p>`;
+            return;
+          }
+          if (/^\s*A\s*[:.)-]/i.test(pText)) {
+            const hidden = prefsElements.hideAnswers.checked ? 'style="display:none"' : '';
+            html += `<p class="qa-a book-paragraph" ${hidden}>${inlineFormat(pText)}</p>`;
+            return;
+          }
+
+          const callout = detectCalloutType(pText);
+          const cl = callout ? `callout ${callout}` : '';
+          const drop = firstAfterH1 ? 'dropcap' : '';
+          html += `<p class="book-paragraph ${cl} ${drop}">${inlineFormat(pText)}</p>`;
+          firstAfterH1 = false;
+          return;
+        }
+
+        if (b.type === 'list') { html += renderList(b.items); firstAfterH1 = false; return; }
+        if (b.type === 'quote') { html += `<blockquote>${inlineFormat(b.text)}</blockquote>`; firstAfterH1 = false; return; }
+        if (b.type === 'code') { html += `<pre><code>${esc(b.text)}</code></pre>`; firstAfterH1 = false; return; }
+        if (b.type === 'table') { html += renderTable(b.lines); firstAfterH1 = false; return; }
+        if (b.type === 'rule') { html += `<hr class="section-rule" />`; firstAfterH1 = false; return; }
+        if (b.type === 'blank') { html += '<div style="height:0.2cm"></div>'; }
+      });
+
+      return { html, tocEntries, sectionCount };
+    }
+
+    function buildTOC(entries) {
+      if (entries.length < 2) return '';
+      return `<h2>Contents</h2><ol class="toc">${entries.map((e, i) => `<li><span>${i + 1}. <a href="#${e.id}">${inlineFormat(e.text)}</a></span><span class="dots"></span><span>${i + 1}</span></li>`).join('')}</ol>`;
+    }
+
+    function splitIntoPages(fullHtml, title, tocHtml) {
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = fullHtml;
+      const blocks = [...wrapper.children];
+
+      const pages = [];
+      const makePage = (pageNum, sectionLabel = '') => {
+        const page = document.createElement('article');
+        page.className = 'page';
+        page.innerHTML = `
+          <div class="running-header"><span>${esc(title)}</span><span>${esc(sectionLabel || 'Study Notes')}</span></div>
+          <div class="page-inner"></div>
+          <div class="running-footer">— ${pageNum} —</div>
+        `;
+        return page;
+      };
+
+      let currentPageNum = 1;
+      let currentSection = 'Study Notes';
+      let page = makePage(currentPageNum, currentSection);
+      const inner = page.querySelector('.page-inner');
+
+      const opener = document.createElement('section');
+      opener.innerHTML = `
+        <h1 class="chapter-title">${inlineFormat(title)}</h1>
+        <p class="chapter-meta">Created on ${formatDate()}</p>
+        <hr class="title-rule" />
+        ${tocHtml}
+      `;
+      inner.appendChild(opener);
+
+      const flush = () => {
+        pages.push(page);
+        currentPageNum += 1;
+        page = makePage(currentPageNum, currentSection);
+      };
+
+      for (const block of blocks) {
+        if (/^H[1-3]$/.test(block.tagName)) currentSection = block.textContent.trim().slice(0, 45);
+        inner.appendChild(block);
+        const overflow = inner.scrollHeight > inner.clientHeight + 2;
+        if (overflow) {
+          inner.removeChild(block);
+          flush();
+          const newInner = page.querySelector('.page-inner');
+          newInner.appendChild(block);
+        }
+      }
+
+      // colophon on last content page
+      page.querySelector('.page-inner').insertAdjacentHTML('beforeend', `<div class="colophon">Generated on ${formatDate()}</div>`);
+      pages.push(page);
+
+      // blank notes page
+      const notes = makePage(currentPageNum + 1, 'Notes');
+      notes.querySelector('.page-inner').innerHTML = `<h2 style="margin-top:0">Notes</h2><div style="height: 85%;"></div>`;
+      pages.push(notes);
+
+      return pages;
+    }
+
+    function renderPreview() {
+      let text = sanitizeInput(sourceEl.value);
+      if (prefsElements.cleanupFluff.checked) text = cleanupAIFluff(text);
+      if (prefsElements.cleanupBreaks.checked) text = cleanupLineBreaks(text);
+
+      const blocks = tokenizeMarkdown(text);
+      const rendered = renderBlocks(blocks);
+      const title = getEffectiveTitle();
+      const toc = buildTOC(rendered.tocEntries);
+      const pages = splitIntoPages(rendered.html, title, toc);
+
+      previewEl.innerHTML = '';
+      for (const page of pages) previewEl.appendChild(page);
+      updateMetrics(pages.length);
+      saveDraft();
+      pushHistory(title, text);
+      document.title = `${title} | ${suggestedFileName()}`;
+    }
+
+    function countWords(text) {
+      return (text.trim().match(/\S+/g) || []).length;
+    }
+
+    function updateMetrics(pageCount = null) {
+      const text = sourceEl.value;
+      const words = countWords(text);
+      const chars = text.length;
+      const estPages = pageCount ?? Math.max(1, Math.round(words / 420));
+      const readMins = Math.max(1, Math.round(words / 180));
+      metricsEl.innerHTML = `
+        <span class="metric">Words: ${words.toLocaleString()}</span>
+        <span class="metric">Characters: ${chars.toLocaleString()}</span>
+        <span class="metric">Estimated pages: ${estPages}</span>
+        <span class="metric">Estimated read: ${readMins} min</span>
+        <span class="metric">Filename: ${suggestedFileName()}</span>
+      `;
+    }
+
+    function pushHistory(title, source) {
+      const history = loadJSON(STORAGE.history, []);
+      const item = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title,
+        words: countWords(source),
+        date: new Date().toISOString(),
+        source
+      };
+      const next = [item, ...history.filter(h => h.source !== source)].slice(0, 30);
+      saveJSON(STORAGE.history, next);
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const history = loadJSON(STORAGE.history, []);
+      historyList.innerHTML = '';
+      history.forEach(item => {
+        const b = document.createElement('button');
+        b.className = 'history-item';
+        b.innerHTML = `<strong>${esc(item.title || 'Untitled')}</strong><br><small>${new Date(item.date).toLocaleString()} • ${item.words} words</small>`;
+        b.addEventListener('click', () => {
+          titleEl.value = item.title;
+          sourceEl.value = item.source;
+          saveDraft();
+          renderPreview();
+          showToast('Loaded from recent documents.');
+        });
+        historyList.appendChild(b);
+      });
+    }
+
+    function setActiveTab(tab) {
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+      inputPanel.classList.toggle('active', tab === 'input');
+      previewEl.classList.toggle('hidden', tab === 'input' && window.innerWidth < 1080);
+      previewToggle.textContent = tab === 'input' ? 'Go to Preview' : 'Back to Input';
+    }
+
+    function loadInitial() {
+      const prefs = getPrefs();
+      applyPrefsToUI(prefs);
+      updateCssPrefs();
+
+      const draft = getDraft();
+      const history = loadJSON(STORAGE.history, []);
+      let startTitle = draft.title;
+      if (!startTitle && history[0]?.title) {
+        const maybe = autoIncrementTitle(history[0].title.trim());
+        if (maybe) startTitle = maybe;
+      }
+
+      titleEl.value = startTitle || '';
+      sourceEl.value = draft.source || '';
+      renderHistory();
+      updateMetrics();
+
+      if (sourceEl.value.trim()) renderPreview();
+    }
+
+    tabs.forEach(t => t.addEventListener('click', () => setActiveTab(t.dataset.tab)));
+
+    previewToggle.addEventListener('click', () => {
+      const toPreview = tabs.find(t => t.dataset.tab === 'preview').classList.contains('active') ? 'input' : 'preview';
+      setActiveTab(toPreview);
+    });
+
+    [titleEl, sourceEl].forEach(el => el.addEventListener('input', saveDraft));
+    sourceEl.addEventListener('input', () => updateMetrics());
+
+    Object.values(prefsElements).forEach(el => {
+      el.addEventListener('change', () => {
+        updateCssPrefs();
+        renderPreview();
+      });
+    });
+
+    formatBtn.addEventListener('click', () => {
+      renderPreview();
+      setActiveTab('preview');
+    });
+
+    printBtn.addEventListener('click', () => {
+      renderPreview();
+      showToast('PDF ready for Samsung Notes.');
+      setTimeout(() => window.print(), 130);
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      const ok = confirm('Clear title and pasted content? This cannot be undone.');
+      if (!ok) return;
+      titleEl.value = '';
+      sourceEl.value = '';
+      previewEl.innerHTML = '';
+      saveDraft();
+      updateMetrics();
+    });
+
+    // Inline quick delete in preview
+    previewEl.addEventListener('dblclick', (e) => {
+      const target = e.target.closest('p,li,blockquote,pre,table,h1,h2,h3,h4');
+      if (!target) return;
+      if (!confirm('Delete selected block from preview draft?')) return;
+      target.remove();
+      showToast('Block removed in preview.');
+    });
+
+    // PWA service worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+    }
+
+    loadInitial();
+    setConnectivity();
+    setActiveTab('input');
+
+    // Input should be ready immediately
+    requestAnimationFrame(() => {
+      sourceEl.focus({ preventScroll: true });
+      sourceEl.select();
+    });
+  </script>
+</body>
+</html>
